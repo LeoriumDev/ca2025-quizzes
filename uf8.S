@@ -1,16 +1,25 @@
 .data
+# CLZ
 mask1: .word 0x0000FFFF
 mask2: .word 0x00FFFFFF
 mask3: .word 0x0FFFFFFF
 mask4: .word 0x3FFFFFFF
 mask5: .word 0x7FFFFFFF
-bin1: .word 0x0000FFFF      # expected return value from clz: 16
-bin2: .word 0xFFFFFFFF      # expected return value from clz: 0
-bin3: .word 0x7FFFFFFF      # expected return value from clz: 1
+bin1:  .word 0x0000FFFF      # expected return value from clz: 16
+bin2:  .word 0xFFFFFFFF      # expected return value from clz: 0
+bin3:  .word 0x7FFFFFFF      # expected return value from clz: 1
 
+# DEC
+byte1: .word 0x000000FF      # expected return value from dec: 1015792
+byte2: .word 0x00000055      # expected return value from dec: 656
+byte3: .word 0x00000007      # expected return value from dec: 7 
 .text
     .globl main
 main:
+    # =====================
+    # CLZ
+    # =====================
+
     # === Testcase bin1 ===
     lw a0, bin1             # Load the test argument into register a0
     jal ra, clz             # Jump-and-link to the 'clz' function for counting leading zeros
@@ -21,7 +30,6 @@ main:
     li a0, 10               # Newline, '\n'
     li a7, 11               # Print char
     ecall
-
 
     # === Testcase bin2 ===
     lw a0, bin2             # Load the test argument into register a0
@@ -34,7 +42,6 @@ main:
     li a7, 11               # Print char
     ecall
 
-
     # === Testcase bin3 ===
     lw a0, bin3             # Load the test argument into register a0
     jal ra, clz             # Jump-and-link to the 'clz' function for counting leading zeros
@@ -42,6 +49,42 @@ main:
     li a7, 1                # Print values returned from clz
     ecall
 
+    li a0, 10               # Newline, '\n'
+    li a7, 11               # Print char
+    ecall
+
+    # =====================
+    # uf8_decode
+    # =====================
+
+    # === Testcase byte1 ===
+    lw a0, byte1            # Load the test byte into register a0
+    jal ra, dec             # Jump-and-link to the 'dec' function for decoding uf8
+
+    li a7, 1                # Print integer
+    ecall
+
+    li a0, 10               # Newline, '\n'
+    li a7, 11               # Print char
+    ecall
+
+    # === Testcase byte2 ===
+    lw a0, byte2            # Load the test byte into register a0
+    jal ra, dec             # Jump-and-link to the 'dec' function for decoding uf8
+
+    li a7, 1                # Print integer
+    ecall
+
+    li a0, 10               # Newline, '\n'
+    li a7, 11               # Print char
+    ecall
+
+    # === Testcase byte3 ===
+    lw a0, byte3            # Load the test byte into register a0
+    jal ra, dec             # Jump-and-link to the 'dec' function for decoding uf8
+
+    li a7, 1                # Print integer
+    ecall
 
     # Exit
     li a7, 10
@@ -120,3 +163,22 @@ return_clz:
 check_zero:
     li a0, 32               # Set a0 = 32
     ret                     # Return to the caller
+
+# Decode uf8 to uint32_t (return value is saved at a0)
+# a0: Input argument
+dec:
+    mv t0, a0               # Save a0 (argument) for calculating exponent
+    srli t0, t0, 4          # Save exponent (fl >> 4) to t0
+
+    andi a0, a0, 0x0f       # Perform (fl & 0x0f)
+    sll a0, a0, t0          # Perform (fl & 0x0f) << (fl >> 4)
+    
+    li t1, 15               # Save constant to t1 for calculating (15 - (fl >> 4))
+    sub t0, t1, t0          # Perform (15 - (fl >> 4)) and save the result to t0
+
+    li t1, 0x7FFF           # Save constant to t1 for calculating (0x7FFF >> (15 - (fl >> 4)))
+    srl t0, t1, t0          # Perform (0x7FFF >> (15 - (fl >> 4))) and save it to t0
+
+    slli t0, t0, 4          # Perform ((0x7FFF >> (15 - (fl >> 4))) << 4)
+    add a0, a0, t0          # Add up a0 and t0 and save to a0
+    ret
