@@ -19,6 +19,14 @@ byte3: .word 0x00000007     # expected return value from dec: 7
 bin4:  .word 0x12345678     # expected return value from enc: 248
 bin5:  .word 0x55553333     # expected return value from enc: 250
 bin6:  .word 0x01010101     # expected return value from enc: 242
+
+# Test
+str1: .string ": produces value "
+str2: .string " but encodes back to "
+str3: .string ": value "
+str4: .string " <= previous_value "
+str5: .string "All tests passed.\n"
+
 .text
     .globl main
 main:
@@ -132,7 +140,18 @@ main:
     li a0, 10               # Newline, '\n'
     li a7, 11               # Print char
     ecall
-    
+
+    # =====================
+    # test
+    # =====================
+
+    jal ra, test            # Jump-and-link to the 'test' function for verifying the correctness of this assembly program
+    beq a0, x0, exit        # If test return true, print str5
+    la a0 str5              # Load str5's address to a0 for printing
+    li a7 4                 # print str5
+    ecall
+
+exit:
     # Exit
     li a7, 10
     ecall
@@ -305,3 +324,106 @@ uf8_est_off:
 
 ret_msb:
     j exact_exp
+
+test:
+    addi sp, sp, -16        # Allocate stack space for storing local variables
+
+    sw s0, 12(sp)           # Save s0's data to the stack
+    sw s1, 8(sp)            # Save s1's data to the stack
+    sw s2, 4(sp)            # Save s2's data to the stack
+    sw s3, 0(sp)            # Save s3's data to the stack
+
+    mv s0, ra               # Save the return address for this function to s0
+    li s1, -1               # int32_t previous_value = -1;
+    li s2, 1                # bool passed = true;
+    li s3, 0                # i = 0;
+
+testcases:
+    mv a0, s3               # uint8_t fl = i;
+    jal ra, dec             # int32_t value = uf8_decode(fl); (return value is stored at a0)
+    mv t6, a0               # Save value to t6
+    jal ra, enc             # uint8_t fl2 = uf8_encode(value); (return value is stored at a0)
+    mv ra, s0               # Restore ra from s0
+
+    # | s0: ra | s1: previous_value | s2: passed | s3: i | t6: value | a0: fl2 |
+fl_eq:
+    beq s3, a0, val_cmp     # Invert if (fl != fl2)
+
+    mv s0, a0               # Save a0 to s0
+
+    mv a0, s3               # Copy i to a0 for printing
+    li a7 34                # print i in hex form
+    ecall                   
+
+    la a0 str1              # Load str1's address to a0 for printing
+    li a7 4                 # print str1
+    ecall
+
+    mv a0, t6               # Copy value to a0 for printing
+    li a7 1                 # print i in int form
+    ecall
+
+    la a0 str2              # Load str2's address to a0 for printing
+    li a7 4                 # print str2
+    ecall
+
+    mv a0, s0               # Restore a0 (fl2) from s0
+    li a7 34                # print i in hex form
+    ecall
+
+    li a0, 10               # Newline, '\n'
+    li a7, 11               # Print char
+    ecall
+
+    mv a0, s0               # Restore a0 (fl2) from s0
+
+    li s2, 0                # passed = false;
+
+    # | s0: ra | s1: previous_value | s2: passed | s3: i | t6: value | a0: fl2 |
+val_cmp:
+    bgt t6, s1, next_it     # Invert if (value <= previous_value)
+
+    mv s0, a0               # Save a0 to s0
+
+    mv a0, s3               # Copy i to a0 for printing
+    li a7 34                # print i in hex form
+    ecall                   
+
+    la a0 str3              # Load str3's address to a0 for printing
+    li a7 4                 # print str3
+    ecall
+
+    mv a0, t6               # Copy value to a0 for printing
+    li a7 1                 # print i in int form
+    ecall
+
+    la a0 str4              # Load str4's address to a0 for printing
+    li a7 4                 # print str4
+    ecall
+
+    mv a0, s1               # Copy previous_value to a0 for printing
+    li a7 34                # print i in hex form
+    ecall
+
+    li a0, 10               # Newline, '\n'
+    li a7, 11               # Print char
+    ecall
+
+    mv a0, s0               # Restore a0 (fl2) from s0
+
+    li s2, 0                # passed = false;
+
+next_it:
+    mv s1, t6               # previous_value = value;
+    addi s3, s3, 1          # i++
+    li t0, 256              # Load 256 to t0 for comparison
+    blt s3, t0, testcases   # i < 256
+
+end_test:
+    mv a0, s2               # save return value "passed" to a0
+    lw s3, 0(sp)            # Save s3's data to the stack
+    lw s2, 4(sp)            # Save s2's data to the stack
+    lw s1, 8(sp)            # Save s1's data to the stack
+    lw s0, 12(sp)           # Save s0's data to the stack
+    ret
+
